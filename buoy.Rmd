@@ -1,0 +1,144 @@
+---
+title: "buoy"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(stringr)
+library(lubridate)
+
+url_1 <- "http://www.ndbc.noaa.gov/view_text_file.php?filename=mlrf1h"
+url_2 <- ".txt.gz&dir=data/historical/stdmet/"
+years <- c(1999:2018)
+urls <- str_c(url_1, years, url_2, sep = "")
+filenames <- str_c("mr", years, sep = "")
+#  Read the data from the website
+
+# Year 1999 - 2006
+for(i in 1:8){
+  suppressMessages(
+    assign(filenames[i], read.table(urls[i], header = TRUE, fill = TRUE))
+  )
+  
+}
+# Year 2007 - 2018
+for(i in 9:20){
+  suppressMessages(
+    assign(filenames[i], read.table(urls[i], header = FALSE, fill = TRUE, col.names = colnames(mr2006))),
+  )
+  
+}
+
+mr1999$TIDE <- NA
+n <- length(urls)
+for (i in 1:n){
+  file <- get(filenames[i])
+  colnames(file)[1] <-"YYYY"
+  if(ncol(file) == 18){
+    file <- subset(file, select = -mm )
+  }
+  if(i == 1){
+    MR <- file
+  }else{
+    MR <- rbind.data.frame(MR, file)
+  }
+  
+}
+#Assemble the data into a single data frame
+
+MR$WVHT <- NA
+MR$DPD <- NA
+MR$APD <- NA
+MR$MWD <- NA
+MR$DEWP <- NA
+MR$VIS <- NA
+MR$TIDE <- NA
+#Convert the null column to NA
+
+MR$WD <- na_if(MR$WD,999)
+MR$WSPD <- na_if(MR$WSPD,99)
+MR$GST <- na_if(MR$GST,99)
+MR$BAR <- na_if(MR$BAR,9999)
+MR$ATMP <- na_if(MR$ATMP,999)
+MR$WTMP <- na_if(MR$WTMP,999)
+#Convert the null data to NA
+
+MR_posix <- mutate(MR,data_time=ymd_h(str_c(YYYY,MM,DD,hh,sep = "/")))
+View(MR_posix)
+#Transform the date-time data into posix numbers
+
+hh0 <- filter(MR_posix,hh==0)
+View(hh0)
+library(rstanarm)
+
+fit_1 <- stan_glm(hh0$ATMP~hh0$YYYY,data=hh0)
+plot(hh0$YYYY,hh0$ATMP,main = "1999-2018 Air Temperature at 0 o' clock",xlab = "Years",ylab = "Air Temperature",pch=20)
+a_0 <- coef(fit_1)[1]
+b_0 <- coef(fit_1)[2]
+abline(a_0,b_0)
+#1999-2018 Air temperature at 0 o' clock 
+  
+n <- 1
+x <- c(1999:2018)
+y <- c()
+for (i in 1999:2018)
+{
+  y[n] <- c((mean(MR$ATMP[MR$YYYY==i],na.rm = T)))
+   n <- n+1
+}
+ave1 <- data.frame(x,y)
+fit_2 <- stan_glm(y~x,data = ave1)
+plot(x,y,main="1999-2018 Average Air Temperature ",xlab = "Years",ylab = "Air Temperature",pch=20)
+a_1 <- coef(fit_2)[1]
+b_1 <- coef(fit_2)[2]
+abline(a_1,b_1)
+#1999-2018 Average Air Temperature
+
+hh1 <- filter(MR_posix,hh==1)
+View(hh1)
+
+fit_3 <- stan_glm(hh1$WTMP~hh1$YYYY,data=hh1)
+plot(hh1$YYYY,hh1$WTMP,main = "1999-2018 Water Temperature at 1 o' clock",xlab = "Years",ylab = "Water Temperature",pch=20)
+a_2 <- coef(fit_3)[1]
+b_2 <- coef(fit_3)[2]
+abline(a_2,b_2)
+#1999-2018 Water Temperature at 1 o' clock
+
+m <- 1
+x_1 <- c(1999:2018)
+y_1 <- c()
+for (i in 1999:2018)
+{
+  y_1[m] <- c((mean(MR$WTMP[MR$YYYY==i],na.rm = T)))
+  m <- m+1
+}
+ave2 <- data.frame(x_1,y_1)
+fit_4 <- stan_glm(y_1~x_1,data = ave2)
+plot(x,y,main="1999-2018 Average Water Temperature ",xlab = "Years",ylab = "Water Temperature",pch=20)
+a_3 <- coef(fit_4)[1]
+b_3 <- coef(fit_4)[2]
+abline(a_3,b_3)
+#1999-2018 Average Water Temperature
+```
+
+
+My report:
+
+1.My understanding of the question:
+The question can be divided into four parts:
+Firstly, I need to collect the data from NDBC Station. According to the task, 20-years of data is needed. Therefore, assembling these data into a single data frame is indispensable.Treating these data as a whole to analyze is what the task requires. Here the question comes: how can I input these tons of data as a single data set?
+Secondly, null data is inevitable. Find the data unused and make substitutions. Besides, these NA data cannot be used in the later regression.
+Thirdly, transform the date-time data into posix numbers. The data-time data is just a bunch of meaningless numbers, which cannot be identified as a time variable. So we need to make a transformation to deal with it.
+Finally, make an analysis from these data. In this part, regression models are necessary.
+
+2.My approach:
+Some useful R packages make sense to these questions."Tidyverse","stringr","lubridate" and "rstanarm" are effective in solving these problems. Through these packages, the problem can be solved without much effort.
+
+3.How I organize my work and make conclusions?
+By querying a lot of information about R packages, I learned how to use them for data import and data processing. Starting from the four parts of the question, each part needs to be solved in a specific way. According to the different problems, find the appropriate R package, find the relevant function and use the function to try to solve the problem. That's how I organize my work.
+My conclusion: Large amounts of data collected showed that water temperature and air temperature are in the form of a rising trend year by year.According to common sense, this trend is reasonable because of the global warming phenomenon. I make the conclusion by the reason that the regression model shows the coefficient is positive, which means the slope of the fit line is positive. 
